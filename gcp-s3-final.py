@@ -1,4 +1,5 @@
 import sys
+import boto3
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
@@ -15,9 +16,9 @@ job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
 # -----------------------------
-# JDBC read using Spark (users table)
+# JDBC read from MySQL
 # -----------------------------
-jdbc_url = "jdbc:mysql://34.59.188.85:3306/test"
+jdbc_url = "jdbc:mysql://130.211.192.99:3306/test"
 
 df = spark.read \
     .format("jdbc") \
@@ -28,22 +29,36 @@ df = spark.read \
     .option("driver", "com.mysql.cj.jdbc.Driver") \
     .load()
 
-# DEBUG: check data
-print("Schema of users table:")
-df.printSchema()
 print("Row count:", df.count())
-df.show(5)
 
 # -----------------------------
-# Write to S3 as single CSV
+# Write CSV to S3 with fixed filename
 # -----------------------------
-output_path = "s3://glue-gcp-1111111111/users/"
+output_bucket = "glue-gcp-1111111"
+temp_prefix = "raw-layer/_tmp/"
+final_prefix = "raw-layer/"
+final_file_name = "gcp-s3.csv"
 
+# Step 1: Write Spark CSV (part file)
 df.coalesce(1) \
   .write.mode("overwrite") \
   .option("header", True) \
-  .csv(output_path)
+  .csv(f"s3://{output_bucket}/{temp_prefix}")
 
-print(f"Cleaned CSV written to: {output_path}")
+# Step 2: Rename part file
+s3 = boto3.client("s3")
+response = s3.list_objects_v2(Bucket=output_bucket, Prefix=temp_prefix)
+
+for obj in response.get("Contents", []):
+    key = obj["Key"]
+    if key.endswith(".csv") and "part-" in key:
+        s3.copy_object(
+            Bucket=output_bucket,
+            CopySource={"Bucket": output_bucket, "Key": key},
+            Key=f"{final_prefix}{final_file_name}"
+        )
+        s3.delete_object(Bucket=output_bucket, Key=key)
+
+print(f"File created: s3://{output_bucket}/{final_prefix}{final_file_name}")
 
 job.commit()
