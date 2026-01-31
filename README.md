@@ -1,5 +1,5 @@
 # Glue-ETL
-
+```
 create database test;
 use test;
 CREATE TABLE users (
@@ -16,3 +16,4 @@ CREATE TABLE users (
         ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
 );
+```
