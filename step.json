@@ -1,44 +1,62 @@
 {
-  "Comment": "On-demand S3 to S3 then S3 to RDS Glue pipeline with failure notification",
-  "StartAt": "S3_to_S3_Glue",
+  "Comment": "GCP to S3 to RDS Glue pipeline with failure notification",
+  "StartAt": "GCP_Glue_Job",
   "States": {
+    "GCP_Glue_Job": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "gcp"
+      },
+      "Next": "S3_to_S3_Glue",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send_Failure_Notification"
+        }
+      ]
+    },
     "S3_to_S3_Glue": {
       "Type": "Task",
       "Resource": "arn:aws:states:::glue:startJobRun.sync",
       "Parameters": {
         "JobName": "s3-s3"
       },
-      "Next": "Check_S3_to_S3_Result"
-    },
-
-    "Check_S3_to_S3_Result": {
-      "Type": "Choice",
-      "Choices": [
+      "Next": "S3_to_RDS_Glue",
+      "Catch": [
         {
-          "Variable": "$.JobRunState",
-          "StringEquals": "SUCCEEDED",
-          "Next": "S3_to_RDS_Glue"
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send_Failure_Notification"
         }
-      ],
-      "Default": "Send_Failure_Notification"
+      ]
     },
-
     "S3_to_RDS_Glue": {
       "Type": "Task",
       "Resource": "arn:aws:states:::glue:startJobRun.sync",
       "Parameters": {
         "JobName": "s3-rds"
       },
-      "End": true
+      "End": true,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Send_Failure_Notification"
+        }
+      ]
     },
-
     "Send_Failure_Notification": {
       "Type": "Task",
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "arn:aws:sns:us-east-1:117601052645:veera",
-        "Message": "The S3_to_S3 Glue job failed or did not succeed.",
-        "Subject": "Glue Job Failure Notification"
+        "Message": "One or more Glue jobs in the pipeline have failed.",
+        "Subject": "Glue Pipeline Failure Notification"
       },
       "End": true
     }
