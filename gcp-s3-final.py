@@ -18,7 +18,7 @@ job.init(args['JOB_NAME'], args)
 # -----------------------------
 # JDBC read from MySQL
 # -----------------------------
-jdbc_url = "jdbc:mysql://130.211.192.99:3306/test"
+jdbc_url = "jdbc:mysql://35.223.165.91:3306/test"
 
 df = spark.read \
     .format("jdbc") \
